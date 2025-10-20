@@ -1,0 +1,47 @@
+# Core data wrangling & IO
+pandas==2.2.2
+pyarrow==17.0.0           # fast parquet/csv IO & Arrow memory
+openpyxl==3.1.5           # read/write .xlsx
+xlrd==2.0.1               # legacy .xls (if any)
+
+# Visualization (reading/creating quick charts if needed)
+matplotlib==3.9.2
+plotly==5.24.1
+
+# # Automation, logging, env
+# APScheduler==3.10.4       # simple time-based jobs (cron-like)
+python-dotenv      # load secrets from .env
+# loguru==0.7.2             # friendly logging
+# tqdm==4.66.5              # progress bars
+
+# # Connectivity (files & APIs)
+# requests==2.32.3          # REST pulls for prior exports
+# boto3==1.35.41            # S3 access (if exports live on S3)
+# s3fs==2024.10.0           # pandas read_csv/parquet directly from s3://
+
+# Data validation / config
+pydantic==2.9.2
+
+# -------------------------
+# Optional add-ons (uncomment only if needed)
+
+# Databases
+# SQLAlchemy==2.0.36
+# psycopg2-binary==2.9.9     # PostgreSQL driver
+
+# Google Sheets / Drive
+# google-api-python-client==2.149.0
+# google-auth==2.35.0
+# gspread==6.1.4
+
+# PDFs / image-based chart exports
+# pdfplumber==0.11.4
+# camelot-py==0.11.0          # table extraction from PDFs (requires ghostscript)
+# opencv-python==4.10.0.84
+# Pillow==10.4.0
+
+# Spark (if you decide to scale out)
+# pyspark==3.5.2
+
+# Task orchestration (if you outgrow APScheduler)
+# prefect==2.20.5
