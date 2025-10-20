@@ -15,6 +15,6 @@ HEASRT_FILE="Hearst Files.xlsx"
 
 # Create directories if they don't exist
 for directory in [
-    DATA_DIR
+    DATA_DIR,HEARST_DIR,HEARST_RAW_DIR,HEARST_PROCESSED
 ]:
     directory.mkdir(parents=True, exist_ok=True)
