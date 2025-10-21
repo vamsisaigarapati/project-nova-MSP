@@ -12,6 +12,7 @@ HEARST_DIR = DATA_DIR / "hearst"
 HEARST_RAW_DIR = HEARST_DIR / "raw"
 HEARST_PROCESSED= HEARST_DIR / "processed"
 HEASRT_FILE="Hearst Files.xlsx"
+HEASRT_FILE_SISENSE="Hearst Files Sisense.xlsx"
 
 # Create directories if they don't exist
 for directory in [
