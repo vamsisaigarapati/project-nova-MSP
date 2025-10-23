@@ -60,6 +60,8 @@ def load_excel_file(
             (col, dtype), = d.items()
             if dtype == "datetime64[ns]":
                 parse_dates.append(col)
+            elif dtype == "date":
+                converters[col] = lambda v: pd.to_datetime(v, errors="coerce").date() if pd.notna(v) else pd.NaT
             elif dtype is int:
                 # per-cell converter -> numeric (NaN on failure); finalize to Int64 after read
                 converters[col] = lambda v: pd.to_numeric(v, errors="coerce")

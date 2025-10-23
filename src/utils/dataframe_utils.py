@@ -33,7 +33,8 @@ def rearrange_columns(df: pd.DataFrame, column_order: List[str]) -> pd.DataFrame
     1  2  3  6
     """
     existing_columns = [col for col in column_order if col in df.columns]
-    remaining_columns = [col for col in df.columns if col not in existing_columns]
-    reordered_df = df[existing_columns + remaining_columns]
+    # remaining_columns = [col for col in df.columns if col not in existing_columns]
+    # reordered_df = df[existing_columns + remaining_columns]
+    reordered_df = df[existing_columns]
 
     return reordered_df

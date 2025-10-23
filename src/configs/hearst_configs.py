@@ -38,7 +38,7 @@ raw_column_types = [
     {"Class Code": str},
     {"WoRev Bill Cycle": str},
     {"Child Acct Name": str},
-    {"First Issue Date": "datetime64[ns]"},
+    {"First Issue Date": "date"},
     {"Full Name LF": str},
     {"Business Unit GL": str},
     {"GL_LOB_L1": str},
