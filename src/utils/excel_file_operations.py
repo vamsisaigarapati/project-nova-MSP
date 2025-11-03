@@ -71,16 +71,25 @@ def load_excel_file(
                 # str/object types
                 dtype_dict[col] = dtype
 
-    # Default to first sheet if not specified
-    _sheet = 0 if sheet_name is None else sheet_name
+    suffix = file_path.suffix.lower()
+    if suffix == ".csv":
+        df = pd.read_csv(
+            file_path,
+            dtype=(dtype_dict or None),
+            parse_dates=(parse_dates or None),
+            converters=(converters or None),
+        )
+    else:
+        # Default to first sheet if not specified
+        _sheet = 0 if sheet_name is None else sheet_name
 
-    df = pd.read_excel(
-        file_path,
-        sheet_name=_sheet,
-        dtype=(dtype_dict or None),
-        parse_dates=(parse_dates or None),
-        converters=(converters or None),
-    )
+        df = pd.read_excel(
+            file_path,
+            sheet_name=_sheet,
+            dtype=(dtype_dict or None),
+            parse_dates=(parse_dates or None),
+            converters=(converters or None),
+        )
 
     # Finalize integer columns to pandas nullable Int64
     if column_types:
