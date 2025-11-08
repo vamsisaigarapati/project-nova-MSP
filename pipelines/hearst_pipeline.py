@@ -17,12 +17,12 @@ from src.config import (
     HEARST_PROCESSED,
     HEASRT_FILE,
     HEASRT_FILE_SISENSE,
+    COMMON_LOOKUP_DIR,
     MSP_AGENNT_LOOKUP_FILE,
     MSP_NOT_ASSIGNED_FILE_NAME,
     MSP_STRATEGIC_FILE,
     MSP_WELCOME_BACK_FILE,
-    MSP_CALENDAR_FILE,
-    HEARST_LOOKUP_DIR,
+    MSP_REVENUE_DATE_FILE,
 )
 from src.configs.hearst_configs import (
     raw_column_types,
@@ -54,33 +54,43 @@ def main():
     )
     # write_df_to_excel(raw_df, HEARST_PROCESSED, "checking.xlsx", sheet_name="Sisense")
     processed_df = calculate_revenue(raw_df)
-    processed_df = tag_msp_from_rep(processed_df)
+    processed_df = tag_msp_from_rep(
+        processed_df,
+        lookup_path=COMMON_LOOKUP_DIR,
+        lookup_file_name=MSP_AGENNT_LOOKUP_FILE,
+        lookup_sheet_name="All Rep Names",
+        processed_name_column="Full Name LF",
+        partner_name=partner_name,
+    )
     processed_df = enrich_with_msp_reference(
         processed_df,
-        lookup_path=HEARST_LOOKUP_DIR,
+        lookup_path=COMMON_LOOKUP_DIR,
         lookup_file_name=MSP_NOT_ASSIGNED_FILE_NAME,
         lookup_sheet_name="Not Assigned Reference List",
     )
     processed_df = tag_verified_strategic(
         processed_df,
-        lookup_path=HEARST_LOOKUP_DIR,
+        lookup_path=COMMON_LOOKUP_DIR,
         strategic_file_name=MSP_STRATEGIC_FILE,
         sheet_name="Strategic Account List",
+        partner_name=partner_name,
     )
     processed_df = tag_welcome_back(
         processed_df,
-        lookup_path=HEARST_LOOKUP_DIR,
+        lookup_path=COMMON_LOOKUP_DIR,
         welcome_back_file=MSP_WELCOME_BACK_FILE,
         sheet_name="Welcome Back List",
+        partner_name=partner_name,
     )
-    # processed_df = assign_revenue_date(
-    #     processed_df,
-    #     lookup_path=HEARST_LOOKUP_DIR,
-    #     calendar_file=MSP_CALENDAR_FILE,
-    #     sheet_name="Calendar",
-    # )
+    processed_df = assign_revenue_date(
+        processed_df,
+        lookup_path=COMMON_LOOKUP_DIR,
+        calendar_file=MSP_REVENUE_DATE_FILE,
+        partner_name=partner_name,
+        calendar_year_or_not=False,
+    )
     processed_df = rearrange_columns(processed_df, sisense_columns)
-    write_df_to_excel(processed_df, HEARST_PROCESSED, HEASRT_FILE_SISENSE, sheet_name="Sisense")
+    write_df_to_excel(processed_df, HEARST_PROCESSED, "new_version.xlsx", sheet_name="Sisense")
 
 
 if __name__ == "__main__":

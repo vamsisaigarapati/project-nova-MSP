@@ -7,10 +7,11 @@ models/*
 __pycache__/
 *.py[cod]
 *$py.class
-
+.vscode
 # C extensions
 *.so
-
+notesss.txt
+.DS_Store
 # Distribution / packaging
 .Python
 build/
