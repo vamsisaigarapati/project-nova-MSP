@@ -100,6 +100,9 @@ def tag_msp_from_rep(
     return merged
 
 
+"""
+Previous exact-match implementation (for reference):
+
 def tag_verified_strategic_generic(
     processed_df: pd.DataFrame,
     *,
@@ -114,9 +117,130 @@ def tag_verified_strategic_generic(
     output_column: str = "Verified Strategic",
     strategic_date_output_column: str = "_strategic_date",
     diagnostics_prefix: str = "[Strategic]",
+    sales_person_replacement: bool = False,
+    processed_sales_column: str | None = None,
+) -> pd.DataFrame:
+    if not processed_lookup_columns:
+        raise ValueError("processed_lookup_columns must contain at least one mapping")
+
+    required_processed = {processed_date_column, *[c for c, _ in processed_lookup_columns]}
+    missing_processed = required_processed - set(processed_df.columns)
+    if missing_processed:
+        raise KeyError(f"Processed DataFrame missing columns: {', '.join(sorted(missing_processed))}")
+
+    lookup_df = load_excel_file(
+        path=lookup_path,
+        file_name=strategic_file_name,
+        sheet_name=sheet_name,
+    )
+
+    required_lookup = {lookup_date_column, company_column, *[c for _, c in processed_lookup_columns]}
+    missing_lookup = required_lookup - set(lookup_df.columns)
+    if missing_lookup:
+        raise KeyError(f"Lookup DataFrame missing columns: {', '.join(sorted(missing_lookup))}")
+
+    lookup_df = lookup_df.copy()
+    partner_lower = partner_name.casefold()
+    lookup_df[company_column] = lookup_df[company_column].astype(str)
+    lookup_df = lookup_df[
+        lookup_df[company_column].str.casefold().str.contains(partner_lower, na=False)
+    ]
+    lookup_df[lookup_date_column] = pd.to_datetime(lookup_df[lookup_date_column], errors="coerce")
+    lookup_df = lookup_df.dropna(subset=[lookup_date_column])
+
+    if lookup_df.empty:
+        raise ValueError(f"{diagnostics_prefix} Lookup does not contain usable rows for partner '{partner_name}'.")
+
+    result_df = processed_df.copy()
+
+    def _normalize(series: pd.Series) -> pd.Series:
+        return (
+            series.astype(str)
+            .str.strip()
+            .str.casefold()
+            .str.replace(r"\\.0+$", "", regex=True)
+        )
+
+    normalized_processed = {
+        col: _normalize(result_df[col])
+        for col, _ in processed_lookup_columns
+    }
+    for _, lookup_col in processed_lookup_columns:
+        norm_col = f"_norm_{lookup_col}"
+        lookup_df[norm_col] = _normalize(lookup_df[lookup_col])
+
+    strategic_dates = pd.Series(pd.NaT, index=result_df.index, dtype="datetime64[ns]")
+
+    print(f"{diagnostics_prefix} Lookup rows after filtering {partner_name}: {len(lookup_df)}")
+    for processed_col, lookup_col in processed_lookup_columns:
+        remaining_mask = strategic_dates.isna()
+        if not remaining_mask.any():
+            break
+        norm_lookup_col = f"_norm_{lookup_col}"
+        lookup_map = (
+            lookup_df[[norm_lookup_col, lookup_date_column]]
+            .dropna(subset=[norm_lookup_col])
+            .drop_duplicates(subset=[norm_lookup_col], keep="first")
+            .set_index(norm_lookup_col)[lookup_date_column]
+        )
+        mapped = normalized_processed[processed_col].loc[remaining_mask].map(lookup_map)
+        strategic_dates.loc[remaining_mask] = mapped.combine_first(strategic_dates.loc[remaining_mask])
+
+    result_df[strategic_date_output_column] = strategic_dates
+
+    first_issue = pd.to_datetime(result_df[processed_date_column], errors="coerce")
+    valid_mask = first_issue.notna() & strategic_dates.notna()
+    verified_mask = valid_mask & (first_issue < strategic_dates)
+
+    result_df[output_column] = 0
+    result_df.loc[verified_mask, output_column] = 1
+
+    if sales_person_replacement:
+        if processed_sales_column is None:
+            raise ValueError("processed_sales_column must be provided when sales_person_replacement is True")
+        if processed_sales_column not in result_df.columns:
+            raise KeyError(f"Processed DataFrame missing column: {processed_sales_column}")
+        if "Salesperson" not in lookup_df.columns:
+            raise KeyError("Strategic lookup missing 'Salesperson' column")
+
+        salesperson_series = pd.Series(index=result_df.index, dtype="object")
+        for processed_col, lookup_col in processed_lookup_columns:
+            norm_lookup_col = f"_norm_{lookup_col}"
+            sales_lookup = (
+                lookup_df[[norm_lookup_col, "Salesperson"]]
+                .dropna(subset=[norm_lookup_col])
+                .drop_duplicates(subset=[norm_lookup_col], keep="last")
+                .set_index(norm_lookup_col)["Salesperson"]
+            )
+            mapped_sales = normalized_processed[processed_col].map(sales_lookup)
+            salesperson_series = salesperson_series.combine_first(mapped_sales)
+
+        sales_mask = verified_mask & salesperson_series.notna()
+        result_df.loc[sales_mask, processed_sales_column] = salesperson_series.loc[sales_mask]
+
+    return result_df
+"""
+
+
+def tag_verified_strategic_generic(
+    processed_df: pd.DataFrame,
+    *,
+    lookup_path: Path | str,
+    strategic_file_name: str,
+    sheet_name: str,
+    partner_name: str,
+    processed_lookup_columns: Sequence[tuple[str, str]],
+    processed_date_column: str = "First Issue Date",
+    lookup_date_column: str = "Strategic End Date",
+    company_column: str = "Company",
+    output_column: str = "Verified Strategic",
+    strategic_date_output_column: str = "_strategic_date",
+    diagnostics_prefix: str = "[Strategic]",
+    sales_person_replacement: bool = False,
+    processed_sales_column: str | None = None,
 ) -> pd.DataFrame:
     """
-    Generic strategic tagging helper that sequentially matches processed columns to lookup columns.
+    Generic strategic tagging helper that uses fuzzy matching for processed/lookup columns.
     """
     if not processed_lookup_columns:
         raise ValueError("processed_lookup_columns must contain at least one mapping")
@@ -190,13 +314,36 @@ def tag_verified_strategic_generic(
     result_df[strategic_date_output_column] = strategic_dates
 
     first_issue = pd.to_datetime(result_df[processed_date_column], errors="coerce")
-    valid_mask = first_issue.notna() & strategic_dates.notna()
-    verified_mask = valid_mask & (first_issue < strategic_dates)
+    strategy_mask = first_issue.notna() & strategic_dates.notna()
+    verified_mask = strategy_mask & (first_issue < strategic_dates)
 
     result_df[output_column] = 0
     result_df.loc[verified_mask, output_column] = 1
 
-    print(f"{diagnostics_prefix} Rows with usable dates: {int(valid_mask.sum())}")
+    if sales_person_replacement:
+        if processed_sales_column is None:
+            raise ValueError("processed_sales_column must be provided when sales_person_replacement is True")
+        if processed_sales_column not in result_df.columns:
+            raise KeyError(f"Processed DataFrame missing column: {processed_sales_column}")
+        if "Salesperson" not in lookup_df.columns:
+            raise KeyError("Strategic lookup missing 'Salesperson' column")
+
+        salesperson_series = pd.Series(index=result_df.index, dtype="object")
+        for processed_col, lookup_col in processed_lookup_columns:
+            norm_lookup_col = f"_norm_{lookup_col}"
+            sales_lookup = (
+                lookup_df[[norm_lookup_col, "Salesperson"]]
+                .dropna(subset=[norm_lookup_col])
+                .drop_duplicates(subset=[norm_lookup_col], keep="last")
+                .set_index(norm_lookup_col)["Salesperson"]
+            )
+            mapped_sales = normalized_processed[processed_col].map(sales_lookup)
+            salesperson_series = salesperson_series.combine_first(mapped_sales)
+
+        sales_mask = verified_mask & salesperson_series.notna()
+        result_df.loc[sales_mask, processed_sales_column] = salesperson_series.loc[sales_mask]
+
+    print(f"{diagnostics_prefix} Rows with usable dates: {int(strategy_mask.sum())}")
     print(f"{diagnostics_prefix} Rows flagged as {output_column}: {int(verified_mask.sum())}")
 
     return result_df
@@ -278,6 +425,87 @@ def tag_welcome_back_generic(
     return result_df
 
 
+def enforce_strategic_orders(
+    processed_df: pd.DataFrame,
+    *,
+    lookup_path: Path | str,
+    lookup_file_name: str,
+    partner_name: str,
+    processed_order_column: str,
+    processed_verified_column: str = "Verified Strategic",
+    lookup_order_column: str = "Order Number",
+    sales_person_replacement: bool = False,
+    processed_sales_column: str | None = None,
+) -> pd.DataFrame:
+    """Ensure orders listed in the strategic orders lookup are flagged as strategic."""
+    if processed_order_column not in processed_df.columns:
+        raise KeyError(f"Processed DataFrame missing column: {processed_order_column}")
+    if processed_verified_column not in processed_df.columns:
+        raise KeyError(f"Processed DataFrame missing column: {processed_verified_column}")
+
+    lookup_df = load_excel_file(
+        path=lookup_path,
+        file_name=lookup_file_name,
+    )
+
+    required_cols = {lookup_order_column, "Company"}
+    missing_lookup = required_cols - set(lookup_df.columns)
+    if missing_lookup:
+        raise KeyError(f"Strategic orders lookup missing columns: {', '.join(sorted(missing_lookup))}")
+
+    partner_lower = partner_name.casefold()
+    lookup_subset = lookup_df[
+        lookup_df["Company"].astype(str).str.casefold().str.contains(partner_lower, na=False)
+    ]
+
+    lookup_orders = (
+        lookup_subset[lookup_order_column]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .str.casefold()
+    )
+    strategic_order_set = set(lookup_orders)
+
+    result_df = processed_df.copy()
+    processed_order_keys = (
+        result_df[processed_order_column]
+        .astype(str)
+        .str.strip()
+        .str.casefold()
+    )
+
+    match_mask = processed_order_keys.isin(strategic_order_set)
+    if not match_mask.any():
+        return result_df
+
+    verified_series = result_df[processed_verified_column].fillna(0)
+    update_mask = match_mask & verified_series.ne(1)
+    result_df.loc[update_mask, processed_verified_column] = 1
+
+    if sales_person_replacement:
+        if processed_sales_column is None:
+            raise ValueError("processed_sales_column must be provided when sales_person_replacement is True")
+        if processed_sales_column not in result_df.columns:
+            raise KeyError(f"Processed DataFrame missing column: {processed_sales_column}")
+        if "Salesperson" not in lookup_subset.columns:
+            raise KeyError("Strategic orders lookup missing 'Salesperson' column")
+
+        sales_map = (
+            lookup_subset[[lookup_order_column, "Salesperson"]]
+            .dropna(subset=[lookup_order_column])
+            .assign(**{lookup_order_column: lambda df: df[lookup_order_column].astype(str).str.strip().str.casefold()})
+            .drop_duplicates(subset=[lookup_order_column], keep="last")
+            .set_index(lookup_order_column)["Salesperson"]
+        )
+
+        mapped_sales = processed_order_keys.map(sales_map)
+        sales_mask = update_mask & mapped_sales.notna()
+        result_df.loc[sales_mask, processed_sales_column] = mapped_sales.loc[sales_mask]
+
+    return result_df
+
+
 def assign_revenue_date_generic(
     processed_df: pd.DataFrame,
     *,
@@ -293,8 +521,7 @@ def assign_revenue_date_generic(
     """
     Assign Revenue Date either from the first day of the current month or via a partner-specific calendar lookup.
     """
-    if period_column not in processed_df.columns:
-        raise KeyError(f"Processed DataFrame missing required column: {period_column}")
+    
 
     result_df = processed_df.copy()
 
@@ -306,7 +533,9 @@ def assign_revenue_date_generic(
         formatted = _format_date(current)
         result_df[output_column] = formatted
         return result_df
-
+    
+    if period_column not in processed_df.columns:
+        raise KeyError(f"Processed DataFrame missing required column: {period_column}")
     if lookup_path is None or calendar_file is None:
         raise ValueError("lookup_path and calendar_file must be provided when calendar_year_or_not is False.")
 

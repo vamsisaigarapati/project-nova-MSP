@@ -7,6 +7,7 @@ from src.config import HEARST_RAW_DIR, HEASRT_FILE
 from src.configs.common_configs import (
     aggregate_first_sum_by_group,
     assign_revenue_date_generic,
+    enforce_strategic_orders,
     tag_msp_from_rep,
     tag_verified_strategic_generic,
     tag_welcome_back_generic,
@@ -175,7 +176,7 @@ def enrich_with_msp_reference(
     lookup_sheet_name: str,
 ) -> pd.DataFrame:
     """
-    Resolve Assigned, Not rows by replacing Full Name LF using the Not Assigned lookup.
+    Resolve \"Assigned, Not\" or \"Wave2, Wave2\" rows using the Not Assigned lookup and apply Wave2 clean-up.
     """
     result_df = processed_df.copy()
 
@@ -203,16 +204,17 @@ def enrich_with_msp_reference(
     lookup_df["Job #"] = lookup_df["Job #"].astype(str).str.strip()
     lookup_df["MSP Agent"] = lookup_df["MSP Agent"].astype(str).str.strip()
 
+    enrich_targets = {"assigned, not", "wave2, wave2"}
     assigned_mask = (
         result_df["Full Name LF"]
         .astype(str)
         .str.strip()
-        .str.lower()
-        .eq("assigned, not")
+        .str.casefold()
+        .isin(enrich_targets)
     )
 
     if not assigned_mask.any():
-        print("[MSP Enrich] No 'Assigned, Not' records found; skipping updates.")
+        print("[MSP Enrich] No 'Assigned, Not' or 'Wave2, Wave2' records found; skipping updates.")
         return result_df
 
     job_series = (
@@ -231,7 +233,7 @@ def enrich_with_msp_reference(
     mapped_agents = job_series.map(job_map)
     match_mask = mapped_agents.notna()
 
-    print(f"[MSP Enrich] Assigned rows: {int(assigned_mask.sum())}")
+    print(f"[MSP Enrich] Target rows: {int(assigned_mask.sum())}")
     print(f"[MSP Enrich] Matches found: {int(match_mask.sum())}")
 
     matched_indices = job_series.index[match_mask]
@@ -244,6 +246,22 @@ def enrich_with_msp_reference(
         result_df.loc[unmatched_indices, "Full Name LF"] = "Wave2, Wave2"
         if "MSP/non-MSP" in result_df.columns:
             result_df.loc[unmatched_indices, "MSP/non-MSP"] = "Non-MSP"
+
+    special_wave2_names = {
+        "Palmiero, Kristi",
+        "zzzColello, Barbara",
+        "zzzCollazo, Maria",
+        "zzzHenderson, Pam",
+        "zzzTrapasso, Rose",
+    }
+    if "Section" in result_df.columns:
+        section_mask = result_df["Section"].astype(str).str.strip().eq("Wave2 Death Notices")
+        name_mask = result_df["Full Name LF"].astype(str).str.strip().isin(special_wave2_names)
+        wave2_override = section_mask & name_mask
+        if wave2_override.any():
+            result_df.loc[wave2_override, "Full Name LF"] = "Wave2, Wave2"
+            if "MSP/non-MSP" in result_df.columns:
+                result_df.loc[wave2_override, "MSP/non-MSP"] = "Non-MSP"
 
     return result_df
 
@@ -295,6 +313,25 @@ def tag_verified_strategic(
     result_df.drop(columns=["_strategic_date"], inplace=True)
 
     return result_df
+
+
+def enforce_strategic_orders_lookup(
+    processed_df: pd.DataFrame,
+    *,
+    lookup_path: Union[str, Path],
+    lookup_file_name: str,
+    partner_name: str,
+) -> pd.DataFrame:
+    """Ensure orders listed in the strategic order lookup are flagged as strategic."""
+    return enforce_strategic_orders(
+        processed_df,
+        lookup_path=lookup_path,
+        lookup_file_name=lookup_file_name,
+        partner_name=partner_name,
+        processed_order_column="Job Number +",
+        processed_verified_column="Verified Strategic",
+        lookup_order_column="Order Number",
+    )
 
 
 def tag_welcome_back(

@@ -23,6 +23,7 @@ from src.config import (
     MSP_STRATEGIC_FILE,
     MSP_WELCOME_BACK_FILE,
     MSP_REVENUE_DATE_FILE,
+    STRATEGIC_ORDERS_FILE,
 )
 from src.configs.hearst_configs import (
     raw_column_types,
@@ -33,6 +34,7 @@ from src.configs.hearst_configs import (
     tag_verified_strategic,
     tag_welcome_back,
     assign_revenue_date,
+    enforce_strategic_orders_lookup,
 )
 from src.utils.excel_file_operations import load_excel_file, write_df_to_excel
 from src.utils.dataframe_utils import rearrange_columns
@@ -75,6 +77,12 @@ def main():
         sheet_name="Strategic Account List",
         partner_name=partner_name,
     )
+    processed_df = enforce_strategic_orders_lookup(
+        processed_df,
+        lookup_path=COMMON_LOOKUP_DIR,
+        lookup_file_name=STRATEGIC_ORDERS_FILE,
+        partner_name=partner_name,
+    )
     processed_df = tag_welcome_back(
         processed_df,
         lookup_path=COMMON_LOOKUP_DIR,
@@ -90,7 +98,7 @@ def main():
         calendar_year_or_not=False,
     )
     processed_df = rearrange_columns(processed_df, sisense_columns)
-    write_df_to_excel(processed_df, HEARST_PROCESSED, "new_version.xlsx", sheet_name="Sisense")
+    write_df_to_excel(processed_df, HEARST_PROCESSED, HEASRT_FILE_SISENSE, sheet_name="Sisense")
 
 
 if __name__ == "__main__":
